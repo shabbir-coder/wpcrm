@@ -34,8 +34,8 @@ exports.saveInstance = async (req, res)=>{
       const url = process.env.LOGIN_CB_API;
       const instance_id = req.body.instance_id;
       let enable = true;
-      // let webhook_url = process.env.IMAGE_URL + 'api/chats/recieveMessage';
-      let webhook_url = 'https://webhook.site/3981014c-0806-48f8-a6b1-c2047438a8bb'
+      let webhook_url = process.env.IMAGE_URL + 'api/chats/event';
+      // let webhook_url = 'https://webhook.site/3981014c-0806-48f8-a6b1-c2047438a8bb'
       const access_token = process.env.ACCESS_TOKEN_CB
       const result = await axios.get(`${url}/set_webhook`, {params:{
         webhook_url, enable, instance_id, access_token
