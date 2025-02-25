@@ -26,23 +26,18 @@ app.use(express.static(path.join(__dirname, 'dist')));
 app.use('/api', routes);
 
 app.get('/admin', (req, res) => {
-    res.sendFile(path.join(__dirname, 'dist/index.html'));
+  res.sendFile(path.join(__dirname, 'dist/index.html'));
 });
 
-app.get('*', (req, res, next) => {
-    if (!req.path.startsWith('/api')) {
-        return res.redirect('/admin');
-    }
-    next();
+app.get('*', (req, res) => {
+   res.redirect('/admin');
 });
 
-const server = http.createServer(app);
+const server = app.listen(port, () => {
+  console.log(`Server is running at http://localhost:${port}`);
+});
 
 const io = initializeSocket(server);
 app.set('io', io);
-
-server.listen(port, () => {
-    console.log(`🚀 Server running at http://localhost:${port}`);
-});
 
 module.exports = { io };
