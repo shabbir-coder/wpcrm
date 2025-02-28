@@ -25,12 +25,12 @@ app.use(express.static(path.join(__dirname, 'dist')));
 
 app.use('/api', routes);
 
-app.get('/admin', (req, res) => {
+app.get('/app', (req, res) => {
   res.sendFile(path.join(__dirname, 'dist/index.html'));
 });
 
 app.get('*', (req, res) => {
-   res.redirect('/admin');
+   res.redirect('app');
 });
 
 const server = app.listen(port, () => {
