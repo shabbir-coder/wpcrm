@@ -8,7 +8,8 @@ const initializeSocket = (server) => {
         cors: {
             origin: "*",
             methods: ["GET", "POST"]
-        }
+        },
+        path: "/wp/socket.io/" 
     });
 
     io.on("connection", (socket) => {
