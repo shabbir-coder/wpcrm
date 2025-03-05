@@ -5,5 +5,6 @@ const router = express.Router();
 
 router.get('/qr', instanceController.createQr);
 router.post('/save', instanceController.saveInstance);
+router.post('/instanceLogin', instanceController.loginInstance);
 
 module.exports = router;

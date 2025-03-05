@@ -5,6 +5,7 @@ const instanceSchema = new mongoose.Schema({
   access_token: String,
   instance_id: String,
   lastScannedAt: Date,
+  number: Number,
   webhookUrl: String,
   isActive: {
     type: Boolean,

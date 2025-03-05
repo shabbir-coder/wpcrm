@@ -9,12 +9,13 @@ const initializeSocket = (server) => {
             origin: "*",
             methods: ["GET", "POST"]
         },
-        path: "/wp/socket.io/" 
+        path: "/wp/socket.io/",
+        secure: true
     });
 
     io.on("connection", (socket) => {
         console.log("A user connected:", socket.id);
-
+        
         socket.on("registerInstance", (instanceId) => {
             if (instanceId) {
                 connectedClients[instanceId] = socket.id;
@@ -38,7 +39,6 @@ const initializeSocket = (server) => {
 };
 
 const emitToInstance = (instanceId, eventName, data) => {
-    console.log('eventName : '+ eventName);
     if (connectedClients[instanceId]) {
         io.to(connectedClients[instanceId]).emit(eventName, data);
     } else {

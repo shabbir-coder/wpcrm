@@ -8,7 +8,6 @@ exports.handleEvent= async(req,res)=>{
     try {
         const { instance_id, data } = req.body;
         if (!data || !data.event) return res.status(400).send({ error: 'Invalid request' });
-
         const io = req.io;
 
         switch (data.event) {
@@ -16,7 +15,7 @@ exports.handleEvent= async(req,res)=>{
                 await handleMessageUpsert(data.data, instance_id);
                 break;
             case 'messages.update':
-                await handleMessageUpdate(data.data);
+                await handleMessageUpdate(data.data, instance_id);
                 break;
             default:
                 console.log("Unknown event received:", data.event);
@@ -60,18 +59,33 @@ const handleMessageUpsert = async (messageData, instanceId) => {
     for (const msg of messageData.messages) {
         const { key, messageTimestamp, pushName, message } = msg;
         const number = key.remoteJid.replace('@s.whatsapp.net', '');
-        if(isNaN(number.length)||number.length>13) return
+        if(isNaN(number.length)||number.length>12) return
 
         const fromMe = key.fromMe;
         const messageId = key.id;
         const textMessage = message?.conversation || message?.extendedTextMessage?.text || '';
 
+        const updateFields = {
+            lastMessage: textMessage,
+            lastMessageAt: new Date()
+        };
+        
+        if (!fromMe) {
+            updateFields.pushName = pushName || 'Unknown';
+            updateFields.instanceId = instanceId;
+        }
+
+
+        const findCondition = fromMe
+            ? { number } // If fromMe is true, match only by number
+            : { number, pushName: pushName || 'Unknown' }; // If fromMe is false, match by both number and name
+        
         const contact = await Contact.findOneAndUpdate(
-            { number },
-            { $set: { pushName: pushName || 'Unknown', instanceId ,lastMessage: textMessage, lastMessageAt: new Date() }},
+            findCondition,
+            { $set: updateFields },
             { new: true, upsert: true }
         );
-
+        
         const newMessage = await Message.create({
             number,
             fromMe,

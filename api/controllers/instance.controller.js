@@ -33,9 +33,10 @@ exports.saveInstance = async (req, res)=>{
     try {
       const url = process.env.LOGIN_CB_API;
       const instance_id = req.body.instance_id;
+      const number = req.body.number;
       let enable = true;
-      let webhook_url = process.env.IMAGE_URL + 'api/chats/event';
-      // let webhook_url = 'https://webhook.site/3981014c-0806-48f8-a6b1-c2047438a8bb'
+      // let webhook_url = process.env.IMAGE_URL + 'api/chats/event';
+      let webhook_url = process.env.WEBHOOK_URL
       const access_token = process.env.ACCESS_TOKEN_CB
       const result = await axios.get(`${url}/set_webhook`, {params:{
         webhook_url, enable, instance_id, access_token
@@ -57,3 +58,36 @@ exports.saveInstance = async (req, res)=>{
       return res.status(500).json({error: 'Internal Server Error'});
     }
   };
+
+exports.loginInstance = async (req, res) => {
+  try {
+    const { instanceId, number} = req.body
+    const url = process.env.LOGIN_CB_API;
+    const access_token = process.env.ACCESS_TOKEN_CB;
+    const enable = true;
+    let instance_id = instanceId;
+    let webhook_url = process.env.WEBHOOK_URL
+  
+    let instanceFound = await Instance.findOne({instance_id, number})
+    if(!instanceFound) return res.status(404).send({message:'Instance or number not found'})
+  
+    const result = await axios.get(`${url}/set_webhook`, {params:{
+      webhook_url, enable, instance_id, access_token
+    }})
+  
+    if(result.data.status!=='error'){
+      instanceFound['lastScannedAt'] = new Date()
+      instanceFound['isActive'] = true
+    }else{
+      instanceFound['isActive'] = false
+    }
+  
+    await instanceFound.save();
+    return res.status(201).send(instanceFound);
+  
+  } catch (error) {
+    console.log(error)
+    return res.status(500).json({error: 'Internal Server Error'});
+  }
+  
+}
