@@ -10,11 +10,13 @@ const express = require('express');
 const chatsRoutes = require('./chats.routes')
 const qrRoutes = require('./qr.routes')
 const listRoutes = require('./lists.routes')
+const userRoutes = require('./user.routes')
 
 const router = express.Router();
 
 router.use('/chats', chatsRoutes);
 router.use('/instance', qrRoutes);
 router.use('/list', listRoutes);
+router.use('/user', userRoutes)
 
 module.exports = router;

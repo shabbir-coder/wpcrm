@@ -46,7 +46,7 @@ exports.mergeChunks = (req, res) => {
     fs.rmdirSync(tempDir);
 
     const baseUrl = `${req.protocol}://${req.get('host')}`;
-    const fileUrl = `${baseUrl}/uploads/${fileName}`;
+    const fileUrl = `${baseUrl}/wp/uploads/${fileName}`;
 
     res.json({ message: 'File merged successfully', filePath: fileUrl });
 };

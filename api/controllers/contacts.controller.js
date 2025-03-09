@@ -1,7 +1,7 @@
 const axios = require('axios');
 const Instance = require('../models/instance.model')
 const mongoose = require('mongoose');
-const Message = require('../models/chats.model');
+const { Message } = require('../models/chats.model');
 const { Contact } = require('../models/contact.model');
 
 // exports.getContact = async(req, res)=>{
@@ -265,7 +265,6 @@ try {
     }
 
     console.log('messageData', messageData)
-
     const API_URL = process.env.LOGIN_CB_API
     const ACCESS_TOKEN = process.env.ACCESS_TOKEN_CB
     const response = await axios.get(`${API_URL}/send`, {
@@ -294,19 +293,22 @@ try {
 
     await newChat.save();
 
-    await Contact.findOneAndUpdate(
-        { number },
-        {
-          $set: {
-            lastMessage: message,
-            lastMessageAt: new Date(),
-            updatedAt: new Date()
-          }
-        },
-        { new: true, upsert: true }
-      );
+    // console.log(number)
 
-    return res.status(200).json({ success: true, message: "Message sent successfully", newChat});
+    // const contact = await Contact.findOneAndUpdate(
+    //     { number , instanceId},
+    //     {
+    //       $set: {
+    //         lastMessage: message,
+    //         lastMessageAt: new Date(),
+    //         updatedAt: new Date()
+    //       }
+    //     },
+    //     { new: true, upsert: true }
+    //   );
+
+    //   console.log(contact)
+    return res.status(200).json({ success: true, message: "Message sent successfully"});
     } catch (error) {
     console.error("Error sending message:", error);
     return res.status(500).json({ error: "Internal Server Error", details: error.message });

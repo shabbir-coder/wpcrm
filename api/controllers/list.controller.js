@@ -1,7 +1,7 @@
 const axios = require('axios');
 const Instance = require('../models/instance.model')
 const mongoose = require('mongoose');
-const Message = require('../models/chats.model');
+const { Message } = require('../models/chats.model');
 const { Contact, List } = require('../models/contact.model');
 
 exports.createList = async (req, res) => {

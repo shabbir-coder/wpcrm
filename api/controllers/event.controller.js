@@ -1,6 +1,6 @@
 const Instance = require('../models/instance.model')
 const mongoose = require('mongoose');
-const Message = require('../models/chats.model');
+const { Message, File } = require('../models/chats.model');
 const { Contact } = require('../models/contact.model');
 const { emitToInstance } = require('../middlewares/socket');
 
@@ -65,6 +65,12 @@ const handleMessageUpsert = async (messageData, instanceId) => {
         const messageId = key.id;
         const textMessage = message?.conversation || message?.extendedTextMessage?.text || '';
 
+        const {imageMessage, videoMessage, audioMessage } = message
+        let fileData
+        if(imageMessage || videoMessage || audioMessage){
+            fileData = await saveFileData(imageMessage || videoMessage || audioMessage )
+        }
+
         const updateFields = {
             lastMessage: textMessage,
             lastMessageAt: new Date()
@@ -75,10 +81,9 @@ const handleMessageUpsert = async (messageData, instanceId) => {
             updateFields.instanceId = instanceId;
         }
 
-
         const findCondition = fromMe
-            ? { number } // If fromMe is true, match only by number
-            : { number, pushName: pushName || 'Unknown' }; // If fromMe is false, match by both number and name
+            ? { number , instanceId}
+            : { number, instanceId, pushName: pushName || 'Unknown' };
         
         const contact = await Contact.findOneAndUpdate(
             findCondition,
@@ -86,15 +91,28 @@ const handleMessageUpsert = async (messageData, instanceId) => {
             { new: true, upsert: true }
         );
         
-        const newMessage = await Message.create({
-            number,
-            fromMe,
-            instanceId,
-            message: textMessage,
-            messageId,
-            timeStamp: new Date(messageTimestamp * 1000),
-            messageStatus: [{ status: fromMe ? "2" : "3", time: new Date() }]
-        });
+        const newMessage = await Message.findOneAndUpdate(
+            {messageId},
+            { 
+                $set: {
+                    number,
+                    fromMe,
+                    instanceId,
+                    message: textMessage || '',
+                    messageId,
+                    timeStamp: new Date(),
+                    messageStatus: [{ status: fromMe ? "2" : "3", time: new Date() }],
+                    type: fileData? 'media' : 'text',
+                    fileType: fileData?.filetype,
+                    mimeType: fileData?.mimetype,
+                    fileSize: fileData?.fileLength,
+                    fileLength: fileData?.seconds,
+                    fileId: fileData?._id,
+                    jpegThumbnail: fileData?.jpegThumbnail
+                }
+            },
+            { new: true, upsert: true }
+        ); 
 
         emitToInstance(instanceId, 'message-'+number, newMessage );
         emitToInstance(instanceId, "contactUpdated", contact)
@@ -119,3 +137,32 @@ const handleMessageUpdate = async (messageUpdates, instanceId) => {
         emitToInstance(instanceId, 'messageStatus-'+number, { messageId, status });
     }
 };
+
+const saveFileData = async(message)=>{
+    try {
+        const fileData = {
+            url: message.url || '',
+            filetype: message.mimetype.split('/')[0],
+            mimetype: message.mimetype || '',
+            caption: message.caption || '',
+            fileSha256: message.fileSha256 || '',
+            fileLength: message.fileLength || '',
+            height: message.height || '',
+            width: message.width || '',
+            mediaKey: message.mediaKey || '',
+            fileEncSha256: message.fileEncSha256 || '',
+            path: message.path || '',
+            mediaKeyTimestamp: message.mediaKeyTimestamp || '',
+            jpegThumbnail: message.jpegThumbnail || '',
+            seconds: message.seconds || '',
+            contextInfo: message.contextInfo || '',
+            streamingSidecar: message.streamingSidecar || ''
+        };
+        
+        const savedFile = await File.create(fileData);
+        return savedFile;
+    } catch (error) {
+        console.error("Error saving file data:", error);
+        return null;
+    }
+}
