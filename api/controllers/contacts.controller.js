@@ -2,7 +2,9 @@ const axios = require('axios');
 const Instance = require('../models/instance.model')
 const mongoose = require('mongoose');
 const { Message } = require('../models/chats.model');
-const { Contact } = require('../models/contact.model');
+const { Contact , ContactAgent} = require('../models/contact.model');
+const { emitToInstance } = require('../middlewares/socket');
+const User = require('../models/users.model');
 
 // exports.getContact = async(req, res)=>{
 //     try {
@@ -80,29 +82,32 @@ const { Contact } = require('../models/contact.model');
 exports.getContact = async (req, res) => {
   try {
     const { page = 1, limit = 10, searchtext, filter } = req.query;
-    const instanceId = req.user.instance_id;
-
-    let matchStage = { instanceId };
-
-    if (searchtext) {
-      matchStage.$or = [
-        { name: { $regex: new RegExp(searchtext, "i") } },
-        { number: { $regex: new RegExp(searchtext, "i") } }
-      ];
-    }
+    const {instanceId, userId} = req.user;
+    const agentId = new mongoose.Types.ObjectId(userId)
+    let matchStage = { agentId, instanceId };
 
     if (filter === "pinned") {
       matchStage.isPinned = true;
     }
 
+
     const pipeline = [
-      { $match: matchStage }, // Filter contacts based on search and instanceId
+      { $match: matchStage }, // Match contacts assigned to the agent
+      {
+        $lookup: {
+          from: "contacts",
+          localField: "contactId",
+          foreignField: "_id",
+          as: "contactDetails"
+        }
+      },
+      { $unwind: "$contactDetails" }, // Unwind to get contact details
       {
         $lookup: {
           from: "messages",
-          localField: "number",
+          localField: "contactDetails.number",
           foreignField: "number",
-          let: { contactNumber: "$number" },
+          let: { contactNumber: "$contactDetails.number" },
           pipeline: [
             {
               $match: {
@@ -119,12 +124,8 @@ exports.getContact = async (req, res) => {
                 }
               }
             },
-            {
-              $match: { isUnread: true } // Keep only unread messages
-            },
-            {
-              $count: "unreadMessages" // Count unread messages per contact
-            }
+            { $match: { isUnread: true } }, // Keep only unread messages
+            { $count: "unreadMessages" } // Count unread messages per contact
           ],
           as: "unreadMessages"
         }
@@ -133,23 +134,48 @@ exports.getContact = async (req, res) => {
         $addFields: {
           unreadMessages: { $ifNull: [{ $arrayElemAt: ["$unreadMessages.unreadMessages", 0] }, 0] }
         }
+      },
+      {
+        $project: {
+          _id: "$contactDetails._id",
+          name: "$contactDetails.name",
+          pushName: "$contactDetails.pushName",
+          number: "$contactDetails.number",
+          lastMessage: "$contactDetails.lastMessage",
+          lastMessageAt: "$contactDetails.lastMessageAt",
+          instanceId: "$contactDetails.instanceId",
+          isPinned: 1,
+          unreadMessages: 1,
+          createdAt: 1,
+          updatedAt: 1,
+        }
       }
     ];
 
-    // Apply unread filter if selected
+    if (searchtext) {
+      pipeline.push({
+        $match: {
+          $or: [
+            { name: { $regex: new RegExp(searchtext, "i") } },
+            { number: { $regex: new RegExp(searchtext, "i") } }
+          ]
+        }
+      });
+    }
+
     if (filter === "unread") {
       pipeline.push({ $match: { unreadMessages: { $gt: 0 } } });
     }
 
     // Pagination
-    const totalContacts = await Contact.aggregate([...pipeline, { $count: "total" }]);
+    const totalContacts = await ContactAgent.aggregate([...pipeline, { $count: "total" }]);
     const total = totalContacts.length > 0 ? totalContacts[0].total : 0;
 
-    pipeline.push({ $sort: { updatedAt: -1 } });
+    pipeline.push({ $sort: { lastMessageAt: -1 } });
     pipeline.push({ $skip: (page - 1) * limit });
     pipeline.push({ $limit: parseInt(limit) });
 
-    const contacts = await Contact.aggregate(pipeline);
+    const contacts = await ContactAgent.aggregate(pipeline);
 
     return res.status(200).json({ data: contacts, total });
 
@@ -160,8 +186,10 @@ exports.getContact = async (req, res) => {
 
 exports.saveContact = async(req, res)=>{
     try {
-        const instanceId = req.user.instance_id
-        
+        const instanceId = req.user.instanceId;
+        const userId = req.user.userId;
+        const user = req.user;
+
         const { number, name } = req.body;
 
         if (!number || !instanceId) {
@@ -181,6 +209,37 @@ exports.saveContact = async(req, res)=>{
         newContact.pushName = name;
         newContact.instanceId = instanceId;
         await newContact.save();
+
+        if (user.role === 'admin') {
+          await ContactAgent.create({
+              contactId: newContact._id,
+              agentId: userId,
+              instanceId,
+              role: 'admin'
+          });
+      } else if (user.role === 'agent') {
+          // Find admin for the same instance
+          const adminUser = await User.findOne({ instanceId, role: 'admin' });
+
+          if (adminUser) {
+              // Create ContactAgent for agent
+              await ContactAgent.create({
+                  contactId: newContact._id,
+                  agentId: userId,
+                  instanceId,
+                  role: 'agent'
+              });
+
+              // Create ContactAgent for admin
+              await ContactAgent.create({
+                  contactId: newContact._id,
+                  agentId: adminUser._id,
+                  instanceId,
+                  role: 'admin'
+              });
+          }
+      }
+
         return res.status(201).send({ message: 'Contact created', contact: newContact });
 
       } catch (error) {
@@ -224,18 +283,18 @@ exports.getMessages = async (req, res)=>{
     try {
         const {senderNumber, limit = 20, offset = 0 } = req.body;
         
-        const instance = req.user
+        const {instanceId} = req.user
 
         const messages = await Message.find({ 
           number: ''+ senderNumber,
-          instanceId: instance.instance_id     
+          instanceId     
          }).sort({ createdAt: -1 })
          .skip(offset * limit)
          .limit(limit);
 
          const count = await Message.countDocuments({
           number: ''+ senderNumber,
-          instanceId: instance.instance_id 
+          instanceId 
          })
         res.status(200).send({messages,count});
       } catch (error) {
@@ -247,7 +306,7 @@ exports.getMessages = async (req, res)=>{
 exports.sendMessage = async(req, res)=>{
 try {
     const { number, message, type, media_url } = req.body;
-    const instanceId = req.user.instance_id
+    const instanceId = req.user.instanceId
     if (!number || !(message || media_url)) {
         return res.status(400).json({ error: "Missing required fields" });
     }
@@ -318,7 +377,7 @@ try {
 exports.markMessagesAsRead = async (req, res) => {
   try {
     const { number } = req.body;
-    const instanceId = req.user.instance_id; // Assuming authentication middleware sets user instance ID
+    const instanceId = req.user.instanceId; // Assuming authentication middleware sets user instance ID
 
     if (!number) {
       return res.status(400).json({ error: "Number is required" });
@@ -363,6 +422,130 @@ exports.uploadFile = (req, res) => {
       filePath: `/uploads/${req.file.filename}`,
       fileType: req.file.mimetype
   });
+};
+
+
+exports.assignUser = async (req, res)=>{
+  try {
+    const { contactId, agentId, isPinned } = req.body;
+    const instanceId = req.user.instanceId;
+
+    if (!contactId || !Array.isArray(agentId) || agentId.length === 0 || !instanceId) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    const existingAssignments = await ContactAgent.find({ contactId, instanceId, role: 'agent' });
+
+    const existingAgentIds = existingAssignments.map(doc => doc.agentId.toString());
+
+    const agentsToAdd = agentId.filter(id => !existingAgentIds.includes(id));
+
+    const agentsToRemove = existingAgentIds.filter(id => !agentId.includes(id));
+
+    if (agentsToRemove.length > 0) {
+      await ContactAgent.deleteMany({
+        contactId,
+        instanceId,
+        agentId: { $in: agentsToRemove }
+      });
+    }
+
+    const newAssignments = agentsToAdd.map(agentId => ({
+      contactId,
+      agentId,
+      instanceId,
+      role: 'agent',
+      isPinned: isPinned ?? false
+    }));
+
+    if (newAssignments.length > 0) {
+      await ContactAgent.insertMany(newAssignments);
+    }
+
+    const updatedAssignments = await ContactAgent.find({ contactId, instanceId, role: 'agent'  });
+
+    agentsToAdd.forEach(agentId => {
+      emitToInstance(agentId, "contactUpdated", { contactId });
+    });
+
+    return res.status(200).json({ success: true, data: updatedAssignments });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+}
+
+exports.getAssignedUser = async (req, res)=>{
+  try {
+    const { contactId } = req.params;
+    const instanceId = req.user.instanceId;
+    console.log(req.user)
+
+    if (!mongoose.Types.ObjectId.isValid(contactId)) {
+      return res.status(400).json({ error: "Invalid contactId" });
+    }
+
+    const contactAgents = await ContactAgent.find({ contactId, instanceId, role: 'agent' })
+      .populate("agentId", "name _id role")
+      .populate("contactId", "name number role");
+
+    if (!contactAgents.length) {
+      return res.status(404).json({ error: "No contact agents found" });
+    }
+
+    return res.status(200).json({ success: true, data: contactAgents });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
+}
+
+exports.unlinkContact = async (req, res)=>{
+  try {
+    const { contactId } = req.params;
+    const agentId = req.user.userId
+    
+    if (!contactId || !agentId) {
+      return res.status(400).json({ error: "Missing required fields" });
+    };
+
+    const deletedEntry = await ContactAgent.findOneAndDelete({ contactId, agentId });
+
+    if (!deletedEntry) {
+      return res.status(404).json({ error: "No matching entry found" });
+    }
+
+    return res.status(200).json({ success: true, message: "Contact unlinked successfully" });
+
+  } catch (error){
+    return res.status(500).json({ error: error.message });
+  }
+}
+
+exports.togglePinContact = async (req, res) => {
+  try {
+    const { contactId } = req.params;
+    const agentId = req.user.userId;
+
+    if (!contactId || !agentId) {
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    const contactAgent = await ContactAgent.findOne({ contactId, agentId });
+
+    if (!contactAgent) {
+      return res.status(404).json({ error: "No matching entry found" });
+    }
+
+    contactAgent.isPinned = !contactAgent.isPinned;
+    await contactAgent.save();
+
+    return res.status(200).json({
+      success: true,
+      message: `Contact ${contactAgent.isPinned ? "pinned" : "unpinned"} successfully`,
+      data: contactAgent
+    });
+  } catch (error) {
+    return res.status(500).json({ error: error.message });
+  }
 };
 
 const sendMessageFunc = async (message, data={})=>{

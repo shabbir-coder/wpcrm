@@ -4,15 +4,17 @@ const jwt = require('jsonwebtoken');
 
 exports.createUser = async (req, res) => {
   try {
-    const { name, designation, password, instanceId, role } = req.body;
+    const { name, designation, password } = req.body;
 
-    const existingUser = await User.findOne({ instanceId });
-    if (existingUser) return res.status(400).json({ message: 'Instance ID already exists' });
+    const instanceId = req.user.instanceId
 
-    const newUser = new User({ name, designation, password, instanceId, role });
+    const existingUser = await User.findOne({ name });
+    if (existingUser) return res.status(400).json({ message: 'Name already exists' });
+
+    const newUser = new User({ name, designation, password, instanceId });
     await newUser.save();
     
-    res.status(201).json({ message: 'User created successfully', userId: newUser.userId });
+    res.status(201).json({ message: 'User created successfully', user: newUser });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: 'Internal Server Error' });
@@ -21,15 +23,15 @@ exports.createUser = async (req, res) => {
 
 exports.loginUser = async (req, res) => {
   try {
-    const { instanceId, password } = req.body;
+    const { userName, password } = req.body;
 
-    const user = await User.findOne({ instanceId });
+    const user = await User.findOne({ name: userName });
     if (!user) return res.status(404).json({ message: 'User not found' });
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(401).json({ message: 'Invalid credentials' });
 
-    const token = jwt.sign({ userId: user.userId, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    const token = jwt.sign({ userId: user._id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '7d' });
     res.json({ message: 'Login successful', token, user });
   } catch (error) {
     console.error(error);
@@ -42,7 +44,9 @@ exports.updateUser = async (req, res) => {
     const { userId } = req.params;
     const updates = req.body;
 
-    const updatedUser = await User.findOneAndUpdate({ userId }, updates, { new: true });
+    const existingUser = await User.findOne({ name });
+
+    const updatedUser = await User.findOneAndUpdate({ _id: userId }, updates, { new: true });
     if (!updatedUser) return res.status(404).json({ message: 'User not found' });
 
     res.json({ message: 'User updated successfully', user: updatedUser });
@@ -68,7 +72,7 @@ exports.deleteUser = async (req, res) => {
 
 exports.getAllUsers = async (req, res) => {
   try {
-    const users = await User.find({}, '-password'); // Exclude password
+    const users = await User.find({role:'agent'}, '-password'); // Exclude password
     res.json(users);
   } catch (error) {
     console.error(error);

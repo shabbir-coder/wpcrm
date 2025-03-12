@@ -1,6 +1,7 @@
 const axios = require('axios');
 const Instance = require('../models/instance.model')
 const mongoose = require('mongoose');
+const User = require('../models/users.model')
 
 exports.createQr = async (req, res) => {
   try {
@@ -35,9 +36,12 @@ exports.saveInstance = async (req, res)=>{
       const instance_id = req.body.instance_id;
       const number = req.body.number;
       let enable = true;
+
+      const user = req.user;
       // let webhook_url = process.env.IMAGE_URL + 'api/chats/event';
       let webhook_url = process.env.WEBHOOK_URL
       const access_token = process.env.ACCESS_TOKEN_CB
+      
       const result = await axios.get(`${url}/set_webhook`, {params:{
         webhook_url, enable, instance_id, access_token
       }})
@@ -51,6 +55,12 @@ exports.saveInstance = async (req, res)=>{
   
       const instance = new Instance(req.body);
       await instance.save();
+
+      await User.findByIdAndUpdate(
+        user.userId,
+        {$set: {instanceId: instance_id}}
+      )
+
       return res.status(201).send(instance);
       
     } catch (error) {

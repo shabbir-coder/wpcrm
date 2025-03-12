@@ -1,8 +1,9 @@
 const Instance = require('../models/instance.model')
 const mongoose = require('mongoose');
 const { Message, File } = require('../models/chats.model');
-const { Contact } = require('../models/contact.model');
+const { Contact, ContactAgent } = require('../models/contact.model');
 const { emitToInstance } = require('../middlewares/socket');
+const User = require('../models/users.model')
 
 exports.handleEvent= async(req,res)=>{
     try {
@@ -47,7 +48,6 @@ const handleContactUpdate = async (contacts, instanceId) => {
         }
         // Emit event to update contact list in frontend
         emitToInstance(instanceId, "contactUpdated", existingContact);
-
     }
 };
 
@@ -90,7 +90,18 @@ const handleMessageUpsert = async (messageData, instanceId) => {
             { $set: updateFields },
             { new: true, upsert: true }
         );
-        
+
+        let receivers = await ContactAgent.find({contactId: contact?._id, instanceId})
+
+        console.log('contactId, instanceId',{contactId: contact?._id, instanceId})
+        if(!receivers.length){
+            const admin = await User.findOne({role:'admin', instanceId})
+            if (admin) {
+                const newReceiver = await ContactAgent.create({ contactId: contact?._id, agentId: admin._id , instanceId , role: 'admin'});
+                receivers = [newReceiver];
+            }
+        }
+            
         const newMessage = await Message.findOneAndUpdate(
             {messageId},
             { 
@@ -113,9 +124,11 @@ const handleMessageUpsert = async (messageData, instanceId) => {
             },
             { new: true, upsert: true }
         ); 
-
-        emitToInstance(instanceId, 'message-'+number, newMessage );
-        emitToInstance(instanceId, "contactUpdated", contact)
+        console.log('receivers', receivers);
+        await Promise.all(receivers.map(async (element) => {
+            emitToInstance(element?.agentId, 'message-' + number, newMessage);
+            emitToInstance(element?.agentId, "contactUpdated", contact);
+        }));
     }
 };
 
