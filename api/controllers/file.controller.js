@@ -1,6 +1,13 @@
 const fs = require('fs');
 const path = require('path');
 
+const axios = require('axios');
+const crypto = require('crypto');
+const { File , Message} = require('../models/chats.model');
+
+const { decryptMedia } = require('@open-wa/wa-decrypt');
+const mime = require('mime-types');
+
 exports.uploadChunk = (req, res) => {
     const { index, totalChunks, fileName } = req.body;
     const chunk = req.file;
@@ -19,7 +26,6 @@ exports.uploadChunk = (req, res) => {
 
     res.json({ message: `Chunk ${index} uploaded successfully` });
 };
-
 
 exports.mergeChunks = (req, res) => {
     const { fileName } = req.body;
@@ -49,4 +55,43 @@ exports.mergeChunks = (req, res) => {
     const fileUrl = `${baseUrl}/wp/uploads/${fileName}`;
 
     res.json({ message: 'File merged successfully', filePath: fileUrl });
+};
+
+exports.downloadAndDecryptMedia = async (req, res) => {
+    const { fileId } = req.params;
+
+    const file = await File.findById(fileId);
+    if (!file) {
+        return res.status(404).json({ error: 'File not found' });
+    }
+        
+    const { url, mediaKey, fileEncSha256, mimetype , filetype, fileLength} = file;
+    
+    const message = {deprecatedMms3Url: url, mediaKey, filehash: fileEncSha256, mimetype, type: filetype, size: fileLength}
+    if (!message.mimetype) return;
+
+    try {
+        const filename = `${file._id}.${mime.extension(message.mimetype)}`;
+        const mediaData = await decryptMedia(message);
+        
+        const uploadDir = path.join(__dirname, '../../uploads/downloads');
+        if (!fs.existsSync(uploadDir)) {
+            fs.mkdirSync(uploadDir, { recursive: true }); // Create directory if it doesn't exist
+        }
+        const savePath = path.join(uploadDir, filename);
+
+        fs.writeFileSync(savePath, mediaData);
+        console.log(`File saved: ${savePath}`);
+        
+        // Step 5: Return URL
+        const baseUrl = `${req.protocol}://${req.get('host')}`;
+        const fileUrl = `${baseUrl}/uploads/downloads/${filename}`; // Corrected variable name
+        
+        const mediaMessage = await Message.findOne({fileId})
+        mediaMessage.mediaUrl = fileUrl;
+        await mediaMessage.save()
+        res.json({ fileId, fileUrl });
+    } catch (error) {
+        console.error('Error processing message:', error);
+    }
 };

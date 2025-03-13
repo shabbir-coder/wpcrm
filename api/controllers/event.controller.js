@@ -61,6 +61,7 @@ const handleMessageUpsert = async (messageData, instanceId) => {
         const number = key.remoteJid.replace('@s.whatsapp.net', '');
         if(isNaN(number.length)||number.length>12) return
 
+        console.log('message', message);
         const fromMe = key.fromMe;
         const messageId = key.id;
         const textMessage = message?.conversation || message?.extendedTextMessage?.text || '';
@@ -102,6 +103,8 @@ const handleMessageUpsert = async (messageData, instanceId) => {
             }
         }
             
+            console.log('messageId', messageId)
+            await new Promise(resolve => setTimeout(resolve, 2000));
         const newMessage = await Message.findOneAndUpdate(
             {messageId},
             { 
@@ -109,7 +112,7 @@ const handleMessageUpsert = async (messageData, instanceId) => {
                     number,
                     fromMe,
                     instanceId,
-                    message: textMessage || '',
+                    message: textMessage || fileData?.caption || '',
                     messageId,
                     timeStamp: new Date(),
                     messageStatus: [{ status: fromMe ? "2" : "3", time: new Date() }],
@@ -124,6 +127,7 @@ const handleMessageUpsert = async (messageData, instanceId) => {
             },
             { new: true, upsert: true }
         ); 
+        console.log('newMessage 13', newMessage);
         console.log('receivers', receivers);
         await Promise.all(receivers.map(async (element) => {
             emitToInstance(element?.agentId, 'message-' + number, newMessage);

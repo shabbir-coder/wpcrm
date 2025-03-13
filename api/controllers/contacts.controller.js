@@ -331,26 +331,42 @@ try {
     });
 
     console.log('response', response.data)
-
+    
     if (response.data.status !== "success") {
         return res.status(500).json({ error: "Failed to send message", details: response.data });
     }
+    let messageId= response.data?.message?.key?.id
     
-    const newChat = new Message({
-        number,
-        fromMe: true,
-        instanceId,
-        messageStatus: [{ status: 1, time: new Date() }],
-        message,
-        type: type || "text",
-        timeStamp: new Date(response.data?.message?.messageTimestamp*1000
-          
-        ),
-        mediaUrl: media_url || "",
-        messageId: response.data?.message?.key?.id || "",
-    });
+    // const newChat = new Message({
+    //     number,
+    //     fromMe: true,
+    //     instanceId,
+    //     messageStatus: [{ status: 1, time: new Date() }],
+    //     message,
+    //     type: type || "text",
+    //     timeStamp: new Date(),
+    //     mediaUrl: media_url || "",
+    //     messageId: response.data?.message?.key?.id || "",
+    // });
+    
+    const newMessage = await Message.findOneAndUpdate(
+            {messageId},
+            { 
+                $set: {
+                    number,
+                    fromMe: true,
+                    instanceId,
+                    message,
+                    messageStatus: [{ status: 1, time: new Date() }],
+                    type: type || "text",
+                    mediaUrl: media_url || "",
+                }
+            },
+            { new: true, upsert: true }
+        ); 
 
-    await newChat.save();
+console.log('newMessage 1', newMessage);
+//     await newChat.save();
 
     // console.log(number)
 

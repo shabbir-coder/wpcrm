@@ -36,6 +36,12 @@ const initializeSocket = (server) => {
                 session = await SocketSession.findOne({ token });
                 if (session) {
                     console.log(`Restoring session for mongoId ${session.mongoId}`);
+                    // const oldSocket = io.sockets.sockets.get(session.socketId);
+                    // if (oldSocket && oldSocket.connected) {
+                    //     console.log(`Disconnecting old socket: ${session.socketId}`);
+                    //     oldSocket.disconnect(true);
+                    // }
+                    
                     session.socketId = socket.id;
                     session.lastActive = new Date();
                     await session.save();
@@ -53,11 +59,11 @@ const initializeSocket = (server) => {
 
                 if (existingSession) {
                     console.log(`Updating existing session for mongoId: ${mongoId} with ${socket.id}`);
-                    const oldSocket = io.sockets.sockets.get(existingSession.socketId);
-                    if (oldSocket) {
-                        console.log(`Disconnecting old socket: ${existingSession.socketId}`);
-                        oldSocket.disconnect(true);
-                    }
+                //     const oldSocket = io.sockets.sockets.get(existingSession.socketId);
+                //   if (oldSocket && oldSocket.connected) {
+                //         console.log(`Disconnecting old socket: ${existingSession.socketId}`);
+                //         oldSocket.disconnect();
+                //     }
                     existingSession.socketId = socket.id;
                     existingSession.lastActive = new Date();
                     await existingSession.save();

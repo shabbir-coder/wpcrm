@@ -21,6 +21,7 @@ router.post('/markMessagesAsRead', authenticateToken, contactController.markMess
 
 router.post('/upload-chunk', upload.single('chunk'), uploadController.uploadChunk);
 router.post('/merge-chunks', uploadController.mergeChunks);
+router.get('/getFileUrl/:fileId', authenticateToken, uploadController.downloadAndDecryptMedia);
 
 
 router.post('/assignUser', authenticateToken, contactController.assignUser);
