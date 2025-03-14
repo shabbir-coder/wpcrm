@@ -19,6 +19,9 @@ const chatSchema = new mongoose.Schema({
   fileId: {type: mongoose.Schema.Types.ObjectId, ref: 'file' },
   messageId: {type: String},
   timeStamp: {type: String},
+  sentBy: {type: String},
+  sendByName: {type: String},
+  sentById: {type: mongoose.Schema.Types.ObjectId},
 }, { timestamps: true }
 );
 

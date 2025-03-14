@@ -85,7 +85,7 @@ exports.downloadAndDecryptMedia = async (req, res) => {
         
         // Step 5: Return URL
         const baseUrl = `${req.protocol}://${req.get('host')}`;
-        const fileUrl = `${baseUrl}/uploads/downloads/${filename}`; // Corrected variable name
+        const fileUrl = `${baseUrl}/wp/uploads/downloads/${filename}`; // Corrected variable name
         
         const mediaMessage = await Message.findOne({fileId})
         mediaMessage.mediaUrl = fileUrl;

@@ -103,8 +103,7 @@ const handleMessageUpsert = async (messageData, instanceId) => {
             }
         }
             
-            console.log('messageId', messageId)
-            await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise(resolve => setTimeout(resolve, 2000));
         const newMessage = await Message.findOneAndUpdate(
             {messageId},
             { 
@@ -122,13 +121,15 @@ const handleMessageUpsert = async (messageData, instanceId) => {
                     fileSize: fileData?.fileLength,
                     fileLength: fileData?.seconds,
                     fileId: fileData?._id,
-                    jpegThumbnail: fileData?.jpegThumbnail
+                    jpegThumbnail: fileData?.jpegThumbnail,
+
+                    sentBy: fromMe ? 'admin': 'customer',
+                    sendByName: pushName,
+                    sentById: contact?._id
                 }
             },
             { new: true, upsert: true }
         ); 
-        console.log('newMessage 13', newMessage);
-        console.log('receivers', receivers);
         await Promise.all(receivers.map(async (element) => {
             emitToInstance(element?.agentId, 'message-' + number, newMessage);
             emitToInstance(element?.agentId, "contactUpdated", contact);

@@ -25,7 +25,9 @@ const authenticateToken = async (req, res, next) => {
     const instanceId = await User.findOne({_id: decoded.userId})
     req.user = decoded
     if(instanceId?.instanceId){
-      req.user['instanceId'] = instanceId?.instanceId
+      req.user['instanceId'] = instanceId?.instanceId;
+      req.user['name'] = instanceId?.name;
+      req.user['designation'] = instanceId?.designation;
     }else if(!instanceId){
       return res.status(403).json({ message: 'User not found' });
     }

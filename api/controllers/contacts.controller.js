@@ -307,6 +307,7 @@ exports.sendMessage = async(req, res)=>{
 try {
     const { number, message, type, media_url } = req.body;
     const instanceId = req.user.instanceId
+    const userId = req.user.userId
     if (!number || !(message || media_url)) {
         return res.status(400).json({ error: "Missing required fields" });
     }
@@ -360,12 +361,13 @@ try {
                     messageStatus: [{ status: 1, time: new Date() }],
                     type: type || "text",
                     mediaUrl: media_url || "",
+                    sentBy: req.user.role,
+                    sendByName: req.user.name,
+                    sentById: userId
                 }
             },
             { new: true, upsert: true }
         ); 
-
-console.log('newMessage 1', newMessage);
 //     await newChat.save();
 
     // console.log(number)
