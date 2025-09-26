@@ -184,3 +184,63 @@ const saveFileData = async(message)=>{
         return null;
     }
 }
+
+
+exports.getEventWebhook = async (req, res) => {
+  const mode = req.query['hub.mode'];
+  const token = req.query['hub.verify_token'];
+  const challenge = req.query['hub.challenge'];
+
+  const VERIFY_TOKEN = process.env.WP_VERIFY_TOKEN; 
+  // Check if a token and mode were sent
+  if (mode && token) {
+    // Check the mode and token sent are correct
+    if (mode === 'subscribe' && token === VERIFY_TOKEN) {
+      // Respond with the challenge token from the request
+      console.log('Webhook verified successfully!');
+      return res.status(200).send(challenge);
+    } else {
+      // Respond with '403 Forbidden' if verify tokens do not match
+      return res.sendStatus(403);
+    }
+  }else{
+      return res.status(400).send({message:'No token or mode found'})
+  }
+};
+
+
+exports.postEventWebhook = async (req, res) => {
+  const body = req.body;
+
+  // Log the request body to see the incoming data
+  console.log("Received webhook event:", JSON.stringify(body, null, 2));
+
+  // Check if the event is from a WhatsApp business account
+  if (body.object === "whatsapp_business_account") {
+    // Process the messages
+    for (const entry of body.entry) {
+      const changes = entry.changes;
+
+      for (const change of changes) {
+        const value = change.value;
+        const messages = value.messages;
+        const statuses = value.statuses;
+        const instanceNumber = value?.metadata?.display_phone_number;
+        const numberId = value?.metadata?.phone_number_id;
+
+        if (messages) {
+          for (const message of messages) {
+            console.log("New message received:", message);
+          }
+        }
+
+        if (statuses) {
+          for (const status of statuses) {
+            console.log("New status update received:", status);
+          }
+        }
+      }
+    }
+    return 'Event recieved'
+  }
+};

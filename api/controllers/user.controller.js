@@ -6,12 +6,12 @@ exports.createUser = async (req, res) => {
   try {
     const { name, designation, password } = req.body;
 
-    const instanceId = req.user.instanceId
+    const numberId = req?.user?.numberId
 
     const existingUser = await User.findOne({ name });
     if (existingUser) return res.status(400).json({ message: 'Name already exists' });
 
-    const newUser = new User({ name, designation, password, instanceId });
+    const newUser = new User({ name, designation, password , numberId});
     await newUser.save();
     
     res.status(201).json({ message: 'User created successfully', user: newUser });

@@ -5,7 +5,8 @@ const UserSchema = new mongoose.Schema({
   name: { type: String, required: true },
   designation: { type: String, required: true },
   password: { type: String, required: true },
-  instanceId: { type: String, required: true },
+  numberId: { type: String, required: false },
+  number: { type: String, required: false },
   role: { type: String, enum: ['agent', 'admin'], default: 'agent' }
 }, {timestamps: true});
 

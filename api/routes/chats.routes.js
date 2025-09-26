@@ -29,6 +29,11 @@ router.get('/getAssignedUser/:contactId', authenticateToken, contactController.g
 router.delete('/unlinkContact/:contactId', authenticateToken, contactController.unlinkContact);
 router.get('/togglePinContact/:contactId', authenticateToken, contactController.togglePinContact);
 
+
+
+router.get('/webhookEvent', eventController.getEventWebhook);
+router.post('/webhookEvent', eventController.postEventWebhook);
+
 // router.post('/sendBulkMessage', contactController.sendBulkMessage);
 
 
